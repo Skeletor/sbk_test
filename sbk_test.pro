@@ -10,6 +10,7 @@ INCLUDEPATH += $$PWD
 
 SOURCES += \
     main.cpp \
+    app/application.cpp \
     app/config/modules/app_config.cpp \
     app/config/modules/controller/controller_config.cpp \
     app/config/modules/device/device_freshness_config.cpp \
@@ -18,6 +19,7 @@ SOURCES += \
     app/ui/main_window.cpp \
 
 HEADERS += \
+    app/application.h \
     app/config/modules/app_config.h \
     app/config/modules/controller/controller_config.h \
     app/config/modules/device/device_freshness_config.h \
