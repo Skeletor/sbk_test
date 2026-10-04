@@ -10,8 +10,18 @@ INCLUDEPATH += $$PWD
 
 SOURCES += \
     main.cpp \
+    app/config/modules/app_config.cpp \
+    app/config/modules/controller/controller_config.cpp \
+    app/config/modules/device/device_freshness_config.cpp \
+    app/config/modules/device/device_poller_config.cpp \
+    app/config/modules/device/http_device_transport_config.cpp \
     app/ui/main_window.cpp \
 
 HEADERS += \
+    app/config/modules/app_config.h \
+    app/config/modules/controller/controller_config.h \
+    app/config/modules/device/device_freshness_config.h \
+    app/config/modules/device/device_poller_config.h \
+    app/config/modules/device/http_device_transport_config.h \
     app/domain/device/device_types.h \
     app/ui/main_window.h \
