@@ -13,4 +13,5 @@ SOURCES += \
     app/ui/main_window.cpp \
 
 HEADERS += \
+    app/domain/device/device_types.h \
     app/ui/main_window.h \
