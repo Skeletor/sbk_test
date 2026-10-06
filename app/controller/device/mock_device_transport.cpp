@@ -1,24 +1,90 @@
 #include "app/controller/device/mock_device_transport.h"
 
+#include <QRandomGenerator>
 #include <QTimer>
 
 #include <utility>
+
+namespace {
+
+constexpr auto ResponseDelayMs = 25;
+constexpr auto ResponseTimeoutMs = 5000;
+constexpr auto EventGenerationIntervalMs = 1000;
+constexpr auto MaximumStoredEvents = 1000;
+constexpr auto NoResponseChance = 0.1;
+
+const auto RoomDeviceId = QStringLiteral("dev-17");
+const auto RoomDeviceName = QStringLiteral("Room sensor");
+const auto OutsideDeviceId = QStringLiteral("dev-42");
+const auto OutsideDeviceName = QStringLiteral("Outside sensor");
+const auto TemperatureMetric = QStringLiteral("temperature");
+const auto HumidityMetric = QStringLiteral("humidity");
+
+QString getValueMessage(const QString& metric, double value)
+{
+    return QStringLiteral("%1 = %2").arg(metric).arg(value);
+}
+
+}  // namespace
 
 namespace Controller::Device {
 
 MockDeviceTransport::MockDeviceTransport(QObject* parent)
     : IDeviceTransport(parent)
+    , m_eventTimer(new QTimer(this))
 {
+    populateInitialEvents();
+    m_eventTimer->setInterval(EventGenerationIntervalMs);
+    connect(m_eventTimer, &QTimer::timeout, this, &MockDeviceTransport::populateNextEvent);
+    m_eventTimer->start();
 }
 
-void MockDeviceTransport::enqueueDevicesResponse(MockTransportResponse response)
+void MockDeviceTransport::populateNextEvent()
 {
-    m_devicesResponses.enqueue(std::move(response));
-}
+    switch (m_generationStep % 8) {
+    case 0:
+        m_roomTemperature += 0.1;
+        appendValueEvent(RoomDeviceId, TemperatureMetric, m_roomTemperature);
+        break;
 
-void MockDeviceTransport::enqueuePollResponse(MockTransportResponse response)
-{
-    m_pollResponses.enqueue(std::move(response));
+    case 1:
+        m_roomHumidity += 0.3;
+        appendValueEvent(RoomDeviceId, HumidityMetric, m_roomHumidity);
+        break;
+
+    case 2:
+        m_outsideTemperature -= 0.2;
+        appendValueEvent(OutsideDeviceId, TemperatureMetric, m_outsideTemperature);
+        break;
+
+    case 3:
+        appendStatusEvent(
+            OutsideDeviceId,
+            Domain::EventType::Offline,
+            QStringLiteral("no data for 60 s"));
+        break;
+
+    case 4:
+        m_roomTemperature -= 0.2;
+        appendValueEvent(RoomDeviceId, TemperatureMetric, m_roomTemperature);
+        break;
+
+    case 5:
+        appendStatusEvent(OutsideDeviceId, Domain::EventType::Online, QStringLiteral("connection restored"));
+        break;
+
+    case 6:
+        m_outsideTemperature += 0.4;
+        appendValueEvent(OutsideDeviceId, TemperatureMetric, m_outsideTemperature);
+        break;
+
+    case 7:
+        m_roomHumidity -= 0.2;
+        appendValueEvent(RoomDeviceId, HumidityMetric, m_roomHumidity);
+        break;
+    }
+
+    ++m_generationStep;
 }
 
 void MockDeviceTransport::requestDevices(RequestId requestId)
@@ -26,9 +92,9 @@ void MockDeviceTransport::requestDevices(RequestId requestId)
     startRequest(RequestKind::Devices, requestId);
 }
 
-void MockDeviceTransport::requestPoll(RequestId requestId, qint64)
+void MockDeviceTransport::requestPoll(RequestId requestId, qint64 since)
 {
-    startRequest(RequestKind::Poll, requestId);
+    startRequest(RequestKind::Poll, requestId, since);
 }
 
 void MockDeviceTransport::abortRequest(RequestKind requestKind)
@@ -49,7 +115,7 @@ void MockDeviceTransport::abortRequest(RequestKind requestKind)
     });
 }
 
-void MockDeviceTransport::startRequest(RequestKind requestKind, RequestId requestId)
+void MockDeviceTransport::startRequest(RequestKind requestKind, RequestId requestId, qint64 since)
 {
     std::optional<RequestId>& activeRequest = getActiveRequest(requestKind);
     if (activeRequest) {
@@ -64,45 +130,124 @@ void MockDeviceTransport::startRequest(RequestKind requestKind, RequestId reques
     }
 
     activeRequest = requestId;
-    QQueue<MockTransportResponse>& responses = getResponses(requestKind);
-    MockTransportResponse response;
-    if (responses.isEmpty()) {
-        response.error = TransportError{
-            requestId,
-            requestKind,
-            TransportErrorCode::Network,
-            0,
-            QStringLiteral("No mock response is queued"),
-        };
-    } else {
-        response = responses.dequeue();
+    if (QRandomGenerator::global()->generateDouble() < NoResponseChance) {
+        scheduleNoResponseTimeout(requestKind, requestId);
+        return;
     }
 
-    QTimer::singleShot(0, this, [this, requestKind, requestId, response = std::move(response)]() mutable {
-        std::optional<RequestId>& currentRequest = getActiveRequest(requestKind);
-        if (!currentRequest || *currentRequest != requestId) {
-            return;
-        }
+    scheduleResponse(requestKind, requestId, since);
+}
 
-        currentRequest.reset();
+void MockDeviceTransport::scheduleNoResponseTimeout(RequestKind requestKind, RequestId requestId)
+{
+    QTimer::singleShot(
+        ResponseTimeoutMs,
+        this,
+        [this, requestKind, requestId]() {
+            std::optional<RequestId>& currentRequest = getActiveRequest(requestKind);
+            if (!currentRequest || *currentRequest != requestId) {
+                return;
+            }
 
-        if (response.error) {
-            response.error->requestId = requestId;
-            response.error->requestKind = requestKind;
-            emit requestFailed(*response.error);
-        } else if (requestKind == RequestKind::Devices) {
-            emit devicesReceived(requestId, response.body);
-        } else {
-            emit pollReceived(requestId, response.body);
+            currentRequest.reset();
+            const QString message = requestKind == RequestKind::Devices
+                ? QStringLiteral("Mock devices request timed out")
+                : QStringLiteral("Mock poll request timed out");
+
+            emit requestFailed({
+                requestId,
+                requestKind,
+                TransportErrorCode::Timeout,
+                0,
+                message,
+            });
         }
+    );
+}
+
+void MockDeviceTransport::scheduleResponse(RequestKind requestKind, RequestId requestId, qint64 since)
+{
+    QTimer::singleShot(
+        ResponseDelayMs,
+        this,
+        [this, requestKind, requestId, since]() {
+            std::optional<RequestId>& currentRequest = getActiveRequest(requestKind);
+            if (!currentRequest || *currentRequest != requestId) {
+                return;
+            }
+
+            currentRequest.reset();
+
+            if (requestKind == RequestKind::Devices) {
+                emit topologyReceived(requestId, getTopology());
+            } else {
+                emit eventBatchReceived(requestId, getEventBatch(since));
+            }
+        }
+    );
+}
+
+DeviceTopology MockDeviceTransport::getTopology() const
+{
+    return {{
+        {RoomDeviceId, RoomDeviceName},
+        {OutsideDeviceId, OutsideDeviceName},
+    }};
+}
+
+DeviceEventBatch MockDeviceTransport::getEventBatch(qint64 since) const
+{
+    DeviceEventBatch batch;
+    batch.lastSequence = m_lastSequence;
+    for (const Domain::DeviceEvent& event : m_events) {
+        if (event.sequence > since) {
+            batch.events.append(event);
+        }
+    }
+
+    return batch;
+}
+
+void MockDeviceTransport::populateInitialEvents()
+{
+    appendValueEvent(RoomDeviceId, TemperatureMetric, m_roomTemperature);
+    appendValueEvent(RoomDeviceId, HumidityMetric, m_roomHumidity);
+    appendValueEvent(OutsideDeviceId, TemperatureMetric, m_outsideTemperature);
+}
+
+void MockDeviceTransport::appendValueEvent(const QString& deviceId, const QString& metric, double value)
+{
+    appendEvent({
+        ++m_lastSequence,
+        QTime::currentTime(),
+        deviceId,
+        Domain::EventType::Value,
+        metric,
+        value,
+        getValueMessage(metric, value),
     });
 }
 
-QQueue<MockTransportResponse>& MockDeviceTransport::getResponses(RequestKind requestKind)
+void MockDeviceTransport::appendStatusEvent(const QString& deviceId, Domain::EventType type, const QString& message)
 {
-    return requestKind == RequestKind::Devices
-        ? m_devicesResponses
-        : m_pollResponses;
+    appendEvent({
+        ++m_lastSequence,
+        QTime::currentTime(),
+        deviceId,
+        type,
+        std::nullopt,
+        std::nullopt,
+        message,
+    });
+}
+
+void MockDeviceTransport::appendEvent(Domain::DeviceEvent event)
+{
+    m_events.append(std::move(event));
+
+    if (m_events.size() > MaximumStoredEvents) {
+        m_events.removeFirst();
+    }
 }
 
 std::optional<RequestId>& MockDeviceTransport::getActiveRequest(RequestKind requestKind)

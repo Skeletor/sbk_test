@@ -1,17 +1,13 @@
 #pragma once
 
 #include "app/controller/device/idevice_transport.h"
-
-#include <QQueue>
+#include "app/domain/device/device_types.h"
 
 #include <optional>
 
-namespace Controller::Device {
+class QTimer;
 
-struct MockTransportResponse {
-    QByteArray body;
-    std::optional<TransportError> error;
-};
+namespace Controller::Device {
 
 class MockDeviceTransport : public IDeviceTransport {
     Q_OBJECT
@@ -19,26 +15,34 @@ class MockDeviceTransport : public IDeviceTransport {
 public:
     explicit MockDeviceTransport(QObject* parent = nullptr);
 
-    void enqueueDevicesResponse(MockTransportResponse response);
-    void enqueuePollResponse(MockTransportResponse response);
-
 public:
     void requestDevices(RequestId requestId) override;
     void requestPoll(RequestId requestId, qint64 since) override;
     void abortRequest(RequestKind requestKind) override;
 
 private:
-    void startRequest(RequestKind requestKind, RequestId requestId);
-    QQueue<MockTransportResponse>& getResponses(RequestKind requestKind);
+    void startRequest(RequestKind requestKind, RequestId requestId, qint64 since = 0);
+    void scheduleNoResponseTimeout(RequestKind requestKind, RequestId requestId);
+    void scheduleResponse(RequestKind requestKind, RequestId requestId, qint64 since);
+    DeviceTopology getTopology() const;
+    DeviceEventBatch getEventBatch(qint64 since) const;
+    void populateInitialEvents();
+    void populateNextEvent();
+    void appendEvent(Domain::DeviceEvent event);
+    void appendValueEvent(const QString& deviceId, const QString& metric, double value);
+    void appendStatusEvent(const QString& deviceId, Domain::EventType type, const QString& message);
     std::optional<RequestId>& getActiveRequest(RequestKind requestKind);
 
 private:
-    QQueue<MockTransportResponse> m_devicesResponses;
-    QQueue<MockTransportResponse> m_pollResponses;
+    Domain::DeviceEventList m_events;
+    QTimer* m_eventTimer = nullptr;
+    qint64 m_lastSequence = 0;
+    int m_generationStep = 0;
+    double m_roomTemperature = 23.5;
+    double m_roomHumidity = 41.2;
+    double m_outsideTemperature = 7.0;
     std::optional<RequestId> m_activeDevicesRequest;
     std::optional<RequestId> m_activePollRequest;
 };
 
 }  // namespace Controller::Device
-
-Q_DECLARE_METATYPE(Controller::Device::MockTransportResponse)
