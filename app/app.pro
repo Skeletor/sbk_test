@@ -41,6 +41,7 @@ HEADERS += \
     $$PWD/controller/device/device_freshness_sentinel.h \
     $$PWD/controller/device/device_manager.h \
     $$PWD/controller/device/device_poller.h \
+    $$PWD/controller/device/device_transport_types.h \
     $$PWD/controller/device/http_device_transport.h \
     $$PWD/controller/device/idevice_transport.h \
     $$PWD/controller/device/mock_device_transport.h \
