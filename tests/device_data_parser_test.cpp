@@ -52,15 +52,15 @@ constexpr auto PollResponse = R"json(
 
 void DeviceDataParserTest::parseDevices()
 {
-    const std::optional<Domain::DeviceList> devices =
+    const std::optional<Controller::Device::DeviceTopology> topology =
         Controller::Device::DeviceDataParser::parseDevices(DevicesResponse);
 
-    QVERIFY(devices);
-    QCOMPARE(devices->size(), 2);
-    QCOMPARE(devices->at(0).id, QStringLiteral("dev-17"));
-    QCOMPARE(devices->at(0).name, QStringLiteral("Room sensor"));
-    QCOMPARE(devices->at(1).id, QStringLiteral("dev-42"));
-    QCOMPARE(devices->at(1).name, QStringLiteral("Outside sensor"));
+    QVERIFY(topology);
+    QCOMPARE(topology->devices.size(), 2);
+    QCOMPARE(topology->devices.at(0).id, QStringLiteral("dev-17"));
+    QCOMPARE(topology->devices.at(0).name, QStringLiteral("Room sensor"));
+    QCOMPARE(topology->devices.at(1).id, QStringLiteral("dev-42"));
+    QCOMPARE(topology->devices.at(1).name, QStringLiteral("Outside sensor"));
 }
 
 void DeviceDataParserTest::skipInvalidDevices()
@@ -78,13 +78,13 @@ void DeviceDataParserTest::skipInvalidDevices()
     }
     )json";
 
-    const std::optional<Domain::DeviceList> devices =
+    const std::optional<Controller::Device::DeviceTopology> topology =
         Controller::Device::DeviceDataParser::parseDevices(body);
 
-    QVERIFY(devices);
-    QCOMPARE(devices->size(), 2);
-    QCOMPARE(devices->at(0).id, QStringLiteral("dev-17"));
-    QCOMPARE(devices->at(1).id, QStringLiteral("dev-42"));
+    QVERIFY(topology);
+    QCOMPARE(topology->devices.size(), 2);
+    QCOMPARE(topology->devices.at(0).id, QStringLiteral("dev-17"));
+    QCOMPARE(topology->devices.at(1).id, QStringLiteral("dev-42"));
 }
 
 void DeviceDataParserTest::rejectInvalidDevicesDocument_data()
@@ -101,21 +101,22 @@ void DeviceDataParserTest::rejectInvalidDevicesDocument()
 {
     QFETCH(QByteArray, body);
 
-    const std::optional<Domain::DeviceList> devices =
+    const std::optional<Controller::Device::DeviceTopology> topology =
         Controller::Device::DeviceDataParser::parseDevices(body);
 
-    QVERIFY(!devices);
+    QVERIFY(!topology);
 }
 
 void DeviceDataParserTest::parsePoll()
 {
-    const std::optional<Domain::DeviceEventList> events =
+    const std::optional<Controller::Device::DeviceEventBatch> batch =
         Controller::Device::DeviceDataParser::parsePoll(PollResponse);
 
-    QVERIFY(events);
-    QCOMPARE(events->size(), 3);
+    QVERIFY(batch);
+    QCOMPARE(batch->lastSequence, qint64(46));
+    QCOMPARE(batch->events.size(), 3);
 
-    const Domain::DeviceEvent& valueEvent = events->at(0);
+    const Domain::DeviceEvent& valueEvent = batch->events.at(0);
     QCOMPARE(valueEvent.sequence, qint64(44));
     QCOMPARE(valueEvent.timestamp, QTime(12, 1, 24));
     QCOMPARE(valueEvent.deviceId, QStringLiteral("dev-17"));
@@ -126,12 +127,12 @@ void DeviceDataParserTest::parsePoll()
     QCOMPARE(*valueEvent.value, 23.5);
     QCOMPARE(valueEvent.message, QStringLiteral("temperature = 23.5"));
 
-    const Domain::DeviceEvent& onlineEvent = events->at(1);
+    const Domain::DeviceEvent& onlineEvent = batch->events.at(1);
     QVERIFY(onlineEvent.type == Domain::EventType::Online);
     QVERIFY(!onlineEvent.metric);
     QVERIFY(!onlineEvent.value);
 
-    const Domain::DeviceEvent& offlineEvent = events->at(2);
+    const Domain::DeviceEvent& offlineEvent = batch->events.at(2);
     QVERIFY(offlineEvent.type == Domain::EventType::Offline);
     QVERIFY(!offlineEvent.metric);
     QVERIFY(!offlineEvent.value);
@@ -155,13 +156,14 @@ void DeviceDataParserTest::skipInvalidEvents()
     }
     )json";
 
-    const std::optional<Domain::DeviceEventList> events =
+    const std::optional<Controller::Device::DeviceEventBatch> batch =
         Controller::Device::DeviceDataParser::parsePoll(body);
 
-    QVERIFY(events);
-    QCOMPARE(events->size(), 2);
-    QCOMPARE(events->at(0).sequence, qint64(8));
-    QCOMPARE(events->at(1).sequence, qint64(14));
+    QVERIFY(batch);
+    QCOMPARE(batch->lastSequence, qint64(14));
+    QCOMPARE(batch->events.size(), 2);
+    QCOMPARE(batch->events.at(0).sequence, qint64(8));
+    QCOMPARE(batch->events.at(1).sequence, qint64(14));
 }
 
 void DeviceDataParserTest::rejectInvalidPollDocument_data()
@@ -170,16 +172,18 @@ void DeviceDataParserTest::rejectInvalidPollDocument_data()
 
     QTest::newRow("invalid-json") << QByteArray("{");
     QTest::newRow("array-root") << QByteArray("[]");
-    QTest::newRow("missing-events") << QByteArray("{}");
-    QTest::newRow("events-not-array") << QByteArray(R"json({"events": {}})json");
+    QTest::newRow("missing-last-sequence") << QByteArray(R"json({"events": []})json");
+    QTest::newRow("fractional-last-sequence") << QByteArray(R"json({"lastSeq": 1.5, "events": []})json");
+    QTest::newRow("missing-events") << QByteArray(R"json({"lastSeq": 0})json");
+    QTest::newRow("events-not-array") << QByteArray(R"json({"lastSeq": 0, "events": {}})json");
 }
 
 void DeviceDataParserTest::rejectInvalidPollDocument()
 {
     QFETCH(QByteArray, body);
 
-    const std::optional<Domain::DeviceEventList> events =
+    const std::optional<Controller::Device::DeviceEventBatch> batch =
         Controller::Device::DeviceDataParser::parsePoll(body);
 
-    QVERIFY(!events);
+    QVERIFY(!batch);
 }

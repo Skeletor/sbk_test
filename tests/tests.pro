@@ -17,4 +17,5 @@ SOURCES += \
 HEADERS += \
     $$PWD/device_data_parser_test.h \
     $$ProjectRoot/app/controller/device/device_data_parser.h \
+    $$ProjectRoot/app/controller/device/device_transport_types.h \
     $$ProjectRoot/app/domain/device/device_types.h
