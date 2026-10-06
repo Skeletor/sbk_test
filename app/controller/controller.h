@@ -13,8 +13,6 @@ class ControllerConfig;
 namespace Controller::Device {
 class DeviceFreshnessSentinel;
 class DeviceManager;
-class DevicePoller;
-class HttpDeviceTransport;
 }  // namespace Controller::Device
 
 namespace Controller {
@@ -39,8 +37,6 @@ signals:
 
 private:
     const Config::Controller::ControllerConfig& m_config;
-    Device::HttpDeviceTransport* m_deviceTransport = nullptr;
-    Device::DevicePoller* m_devicePoller = nullptr;
     Device::DeviceManager* m_deviceManager = nullptr;
     Device::DeviceFreshnessSentinel* m_deviceFreshnessSentinel = nullptr;
 };

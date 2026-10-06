@@ -5,6 +5,7 @@
 #include "app/controller/device/device_manager.h"
 #include "app/controller/device/device_poller.h"
 #include "app/controller/device/http_device_transport.h"
+#include "app/controller/device/mock_device_transport.h"
 
 namespace Controller {
 
@@ -22,11 +23,21 @@ void Controller::initialize()
         return;
     }
 
-    m_deviceTransport = new Device::HttpDeviceTransport(m_config.httpDeviceTransport(), this);
-    m_devicePoller = new Device::DevicePoller(m_config.devicePoller(), this);
-    m_deviceManager = new Device::DeviceManager(m_deviceTransport, this);
+    Device::IDeviceTransport* deviceTransport = nullptr;
+    switch (m_config.deviceTransport().type()) {
+    case Config::Device::DeviceTransportType::Http:
+        deviceTransport = new Device::HttpDeviceTransport(m_config.httpDeviceTransport(), this);
+        break;
+
+    case Config::Device::DeviceTransportType::Mock:
+        deviceTransport = new Device::MockDeviceTransport(this);
+        break;
+    }
+
+    Device::DevicePoller* devicePoller = new Device::DevicePoller(m_config.devicePoller(), this);
+    m_deviceManager = new Device::DeviceManager(deviceTransport, this);
     m_deviceFreshnessSentinel = new Device::DeviceFreshnessSentinel(m_config.deviceFreshness(), this);
-    m_deviceManager->setPoller(m_devicePoller);
+    m_deviceManager->setPoller(devicePoller);
 
     connect(
         m_deviceManager,
