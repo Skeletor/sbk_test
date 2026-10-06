@@ -1,9 +1,14 @@
 #pragma once
 
 #include <QObject>
+#include <QThread>
 
 namespace Config {
 class AppConfig;
+}
+
+namespace Controller {
+class Controller;
 }
 
 namespace Ui {
@@ -21,5 +26,7 @@ public:
 
 private:
     const Config::AppConfig& m_appConfig;
+    QThread m_controllerThread;
+    Controller::Controller* m_controller = nullptr;
     Ui::MainWindow* m_mainWindow = nullptr;
 };
