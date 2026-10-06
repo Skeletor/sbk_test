@@ -1,0 +1,247 @@
+#include "app/controller/device/device_manager.h"
+
+#include "app/controller/device/device_poller.h"
+
+#include <algorithm>
+#include <limits>
+
+namespace Controller::Device {
+
+DeviceManager::DeviceManager(IDeviceTransport* transport, QObject* parent)
+    : QObject(parent)
+    , m_transport(transport)
+{
+    if (!m_transport) {
+        return;
+    }
+
+    connect(
+        m_transport,
+        &IDeviceTransport::topologyReceived,
+        this,
+        &DeviceManager::handleTopologyReceived);
+    connect(
+        m_transport,
+        &IDeviceTransport::eventBatchReceived,
+        this,
+        &DeviceManager::handleEventBatchReceived);
+    connect(
+        m_transport,
+        &IDeviceTransport::requestFailed,
+        this,
+        &DeviceManager::handleTransportFailure);
+}
+
+void DeviceManager::setPoller(DevicePoller* poller)
+{
+    if (m_poller == poller) {
+        return;
+    }
+
+    if (m_poller) {
+        disconnect(m_poller, nullptr, this, nullptr);
+        m_poller->stop();
+    }
+
+    m_poller = poller;
+    if (!m_poller) {
+        return;
+    }
+
+    connect(m_poller, &DevicePoller::pollRequested, this, &DeviceManager::requestNext);
+    if (m_running) {
+        m_poller->start();
+    }
+}
+
+qint64 DeviceManager::lastSequence() const
+{
+    return m_lastSequence;
+}
+
+void DeviceManager::initialize()
+{
+    m_running = true;
+    if (m_poller) {
+        m_poller->start();
+    }
+
+    requestDevices();
+}
+
+void DeviceManager::refresh()
+{
+    if (m_poller) {
+        m_poller->restart();
+    }
+
+    if (!m_running) {
+        return;
+    }
+
+    if (m_deviceListReady) {
+        requestPoll();
+    } else {
+        requestDevices();
+    }
+}
+
+void DeviceManager::shutdown()
+{
+    m_running = false;
+    if (m_poller) {
+        m_poller->stop();
+    }
+
+    if (!m_transport) {
+        m_activeDevicesRequest.reset();
+        m_activePollRequest.reset();
+        m_deviceListReady = false;
+        return;
+    }
+
+    if (m_activeDevicesRequest) {
+        m_activeDevicesRequest.reset();
+        m_transport->abortRequest(RequestKind::Devices);
+    }
+
+    if (m_activePollRequest) {
+        m_activePollRequest.reset();
+        m_transport->abortRequest(RequestKind::Poll);
+    }
+
+    m_deviceListReady = false;
+}
+
+void DeviceManager::handleTopologyReceived(RequestId requestId, const DeviceTopology& topology)
+{
+    if (!m_activeDevicesRequest || requestId != *m_activeDevicesRequest) {
+        return;
+    }
+
+    m_activeDevicesRequest.reset();
+    m_deviceListReady = true;
+    emit devicesUpdated(topology.devices);
+
+    requestPoll();
+}
+
+void DeviceManager::handleEventBatchReceived(RequestId requestId, const DeviceEventBatch& batch)
+{
+    if (!m_activePollRequest || requestId != *m_activePollRequest) {
+        return;
+    }
+
+    m_activePollRequest.reset();
+    Domain::DeviceEventList acceptedEvents = acceptEvents(batch.events);
+    if (!acceptedEvents.isEmpty()) {
+        emit eventsAccepted(acceptedEvents);
+    }
+}
+
+void DeviceManager::handleTransportFailure(const TransportError& error)
+{
+    std::optional<RequestId>* activeRequest = nullptr;
+    if (error.requestKind == RequestKind::Devices) {
+        activeRequest = &m_activeDevicesRequest;
+    } else {
+        activeRequest = &m_activePollRequest;
+    }
+
+    if (!*activeRequest || error.requestId != **activeRequest) {
+        return;
+    }
+
+    activeRequest->reset();
+    if (error.code != TransportErrorCode::Aborted) {
+        emit transportFailed(error);
+    }
+}
+
+RequestId DeviceManager::nextRequestId()
+{
+    const RequestId requestId = m_nextRequestId;
+    if (m_nextRequestId == std::numeric_limits<RequestId>::max()) {
+        m_nextRequestId = 1;
+    } else {
+        ++m_nextRequestId;
+    }
+
+    return requestId;
+}
+
+void DeviceManager::requestNext()
+{
+    if (!m_running) {
+        return;
+    }
+
+    if (!m_deviceListReady) {
+        if (!m_activeDevicesRequest) {
+            requestDevices();
+        }
+
+        return;
+    }
+
+    requestPoll();
+}
+
+void DeviceManager::requestDevices()
+{
+    if (!m_transport) {
+        return;
+    }
+
+    if (m_activeDevicesRequest) {
+        m_activeDevicesRequest.reset();
+        m_transport->abortRequest(RequestKind::Devices);
+    }
+
+    const RequestId requestId = nextRequestId();
+    m_activeDevicesRequest = requestId;
+    m_transport->requestDevices(requestId);
+}
+
+void DeviceManager::requestPoll()
+{
+    if (!m_transport) {
+        return;
+    }
+
+    if (m_activePollRequest) {
+        m_activePollRequest.reset();
+        m_transport->abortRequest(RequestKind::Poll);
+    }
+
+    const RequestId requestId = nextRequestId();
+    m_activePollRequest = requestId;
+    m_transport->requestPoll(requestId, m_lastSequence);
+}
+
+Domain::DeviceEventList DeviceManager::acceptEvents(const Domain::DeviceEventList& events)
+{
+    Domain::DeviceEventList orderedEvents = events;
+    std::stable_sort(
+        orderedEvents.begin(),
+        orderedEvents.end(),
+        [](const Domain::DeviceEvent& left, const Domain::DeviceEvent& right) {
+            return left.sequence < right.sequence;
+        }
+    );
+
+    Domain::DeviceEventList acceptedEvents;
+    acceptedEvents.reserve(orderedEvents.size());
+    for (const Domain::DeviceEvent& event : orderedEvents) {
+        if (event.sequence <= m_lastSequence) {
+            continue;
+        }
+
+        acceptedEvents.append(event);
+        m_lastSequence = event.sequence;
+    }
+
+    return acceptedEvents;
+}
+
+}  // namespace Controller::Device

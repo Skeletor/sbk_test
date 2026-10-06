@@ -8,7 +8,7 @@ namespace Config::Device {
 
 class HttpDeviceTransportConfig {
 public:
-    explicit HttpDeviceTransportConfig(const QSettings& settings);
+    explicit HttpDeviceTransportConfig(QSettings& settings);
 
     const QUrl& baseUrl() const;
     int devicesRequestTimeoutMs() const;

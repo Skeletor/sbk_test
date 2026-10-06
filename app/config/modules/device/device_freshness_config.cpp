@@ -11,9 +11,13 @@ constexpr auto DefaultUnreliableAfterSec = 300;
 
 namespace Config::Device {
 
-DeviceFreshnessConfig::DeviceFreshnessConfig(const QSettings& settings)
-    : m_unreliableAfterSec(settings.value(UnreliableAfterSecKey, DefaultUnreliableAfterSec).toInt())
+DeviceFreshnessConfig::DeviceFreshnessConfig(QSettings& settings)
 {
+    if (!settings.contains(UnreliableAfterSecKey)) {
+        settings.setValue(UnreliableAfterSecKey, DefaultUnreliableAfterSec);
+    }
+
+    m_unreliableAfterSec = settings.value(UnreliableAfterSecKey).toInt();
     if (m_unreliableAfterSec <= 0) {
         m_unreliableAfterSec = DefaultUnreliableAfterSec;
     }

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <QByteArray>
+#include "app/controller/device/device_transport_types.h"
+
 #include <QMetaType>
 #include <QObject>
 #include <QString>
@@ -18,6 +19,7 @@ enum class TransportErrorCode {
     Network,
     Timeout,
     HttpStatus,
+    InvalidPayload,
     Aborted,
 };
 
@@ -41,8 +43,8 @@ public:
     virtual void abortRequest(RequestKind requestKind) = 0;
 
 signals:
-    void devicesReceived(RequestId requestId, const QByteArray& body);
-    void pollReceived(RequestId requestId, const QByteArray& body);
+    void topologyReceived(RequestId requestId, const DeviceTopology& topology);
+    void eventBatchReceived(RequestId requestId, const DeviceEventBatch& batch);
     void requestFailed(const TransportError& error);
 };
 

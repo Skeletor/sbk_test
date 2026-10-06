@@ -11,9 +11,13 @@ constexpr auto DefaultIntervalMs = 2000;
 
 namespace Config::Device {
 
-DevicePollerConfig::DevicePollerConfig(const QSettings& settings)
-    : m_intervalMs(settings.value(IntervalMsKey, DefaultIntervalMs).toInt())
+DevicePollerConfig::DevicePollerConfig(QSettings& settings)
 {
+    if (!settings.contains(IntervalMsKey)) {
+        settings.setValue(IntervalMsKey, DefaultIntervalMs);
+    }
+
+    m_intervalMs = settings.value(IntervalMsKey).toInt();
     if (m_intervalMs <= 0) {
         m_intervalMs = DefaultIntervalMs;
     }

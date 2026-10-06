@@ -17,11 +17,22 @@ constexpr auto DefaultPollRequestTimeoutMs = 5000;
 
 namespace Config::Device {
 
-HttpDeviceTransportConfig::HttpDeviceTransportConfig(const QSettings& settings)
-    : m_baseUrl(settings.value(BaseUrlKey, DefaultBaseUrl).toUrl())
-    , m_devicesRequestTimeoutMs(settings.value(DevicesRequestTimeoutMsKey, DefaultDevicesRequestTimeoutMs).toInt())
-    , m_pollRequestTimeoutMs(settings.value(PollRequestTimeoutMsKey, DefaultPollRequestTimeoutMs).toInt())
+HttpDeviceTransportConfig::HttpDeviceTransportConfig(QSettings& settings)
 {
+    if (!settings.contains(BaseUrlKey)) {
+        settings.setValue(BaseUrlKey, DefaultBaseUrl);
+    }
+    if (!settings.contains(DevicesRequestTimeoutMsKey)) {
+        settings.setValue(DevicesRequestTimeoutMsKey, DefaultDevicesRequestTimeoutMs);
+    }
+    if (!settings.contains(PollRequestTimeoutMsKey)) {
+        settings.setValue(PollRequestTimeoutMsKey, DefaultPollRequestTimeoutMs);
+    }
+
+    m_baseUrl = settings.value(BaseUrlKey).toUrl();
+    m_devicesRequestTimeoutMs = settings.value(DevicesRequestTimeoutMsKey).toInt();
+    m_pollRequestTimeoutMs = settings.value(PollRequestTimeoutMsKey).toInt();
+
     if (!m_baseUrl.isValid() || m_baseUrl.isEmpty()) {
         m_baseUrl = QUrl(DefaultBaseUrl);
     }
