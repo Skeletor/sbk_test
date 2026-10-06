@@ -36,6 +36,8 @@ private:
     void handlePollReceived(RequestId requestId, const QByteArray& body);
     void handleTransportFailure(const TransportError& error);
 
+    void requestNext();
+    void requestDevices();
     void requestPoll();
     RequestId nextRequestId();
     Domain::DeviceEventList acceptEvents(const Domain::DeviceEventList& events);
@@ -43,6 +45,7 @@ private:
 private:
     QPointer<IDeviceTransport> m_transport;
     QPointer<DevicePoller> m_poller;
+    bool m_running = false;
     bool m_deviceListReady = false;
     qint64 m_lastSequence = 0;
     RequestId m_nextRequestId = 1;

@@ -49,8 +49,8 @@ void DeviceManager::setPoller(DevicePoller* poller)
         return;
     }
 
-    connect(m_poller, &DevicePoller::pollRequested, this, &DeviceManager::requestPoll);
-    if (m_deviceListReady) {
+    connect(m_poller, &DevicePoller::pollRequested, this, &DeviceManager::requestNext);
+    if (m_running) {
         m_poller->start();
     }
 }
@@ -62,18 +62,12 @@ qint64 DeviceManager::lastSequence() const
 
 void DeviceManager::initialize()
 {
-    if (!m_transport) {
-        return;
+    m_running = true;
+    if (m_poller) {
+        m_poller->start();
     }
 
-    if (m_activeDevicesRequest) {
-        m_activeDevicesRequest.reset();
-        m_transport->abortRequest(RequestKind::Devices);
-    }
-
-    const RequestId requestId = nextRequestId();
-    m_activeDevicesRequest = requestId;
-    m_transport->requestDevices(requestId);
+    requestDevices();
 }
 
 void DeviceManager::refresh()
@@ -82,11 +76,20 @@ void DeviceManager::refresh()
         m_poller->restart();
     }
 
-    requestPoll();
+    if (!m_running) {
+        return;
+    }
+
+    if (m_deviceListReady) {
+        requestPoll();
+    } else {
+        requestDevices();
+    }
 }
 
 void DeviceManager::shutdown()
 {
+    m_running = false;
     if (m_poller) {
         m_poller->stop();
     }
@@ -126,9 +129,6 @@ void DeviceManager::handleDevicesReceived(RequestId requestId, const QByteArray&
     
     m_deviceListReady = true;
     emit devicesUpdated(*devices);
-    if (m_poller) {
-        m_poller->start();
-    }
 
     requestPoll();
 }
@@ -181,6 +181,39 @@ RequestId DeviceManager::nextRequestId()
     }
 
     return requestId;
+}
+
+void DeviceManager::requestNext()
+{
+    if (!m_running) {
+        return;
+    }
+
+    if (!m_deviceListReady) {
+        if (!m_activeDevicesRequest) {
+            requestDevices();
+        }
+
+        return;
+    }
+
+    requestPoll();
+}
+
+void DeviceManager::requestDevices()
+{
+    if (!m_transport) {
+        return;
+    }
+
+    if (m_activeDevicesRequest) {
+        m_activeDevicesRequest.reset();
+        m_transport->abortRequest(RequestKind::Devices);
+    }
+
+    const RequestId requestId = nextRequestId();
+    m_activeDevicesRequest = requestId;
+    m_transport->requestDevices(requestId);
 }
 
 void DeviceManager::requestPoll()
