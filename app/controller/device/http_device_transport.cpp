@@ -1,6 +1,7 @@
 #include "app/controller/device/http_device_transport.h"
 
 #include "app/config/modules/device/http_device_transport_config.h"
+#include "app/controller/device/device_data_parser.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -146,11 +147,34 @@ void HttpDeviceTransport::handleRequestFinished(RequestKind requestKind)
             status,
             errorMessage,
         });
-    } else if (requestKind == RequestKind::Devices) {
-        emit devicesReceived(requestId, body);
     } else {
-        emit pollReceived(requestId, body);
+        emitParsedResponse(requestKind, requestId, body);
     }
+}
+
+void HttpDeviceTransport::emitParsedResponse(RequestKind requestKind, RequestId requestId, const QByteArray& body)
+{
+    if (requestKind == RequestKind::Devices) {
+        const std::optional<DeviceTopology> topology = DeviceDataParser::parseDevices(body);
+        if (topology) {
+            emit topologyReceived(requestId, *topology);
+            return;
+        }
+    } else {
+        const std::optional<DeviceEventBatch> batch = DeviceDataParser::parsePoll(body);
+        if (batch) {
+            emit eventBatchReceived(requestId, *batch);
+            return;
+        }
+    }
+
+    emit requestFailed({
+        requestId,
+        requestKind,
+        TransportErrorCode::InvalidPayload,
+        HttpOkStatus,
+        QStringLiteral("Invalid device API response"),
+    });
 }
 
 HttpDeviceTransport::PendingRequest& HttpDeviceTransport::getPendingRequest(RequestKind requestKind)

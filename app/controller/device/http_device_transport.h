@@ -2,6 +2,7 @@
 
 #include "app/controller/device/idevice_transport.h"
 
+#include <QByteArray>
 #include <QPointer>
 
 namespace Config::Device {
@@ -33,6 +34,7 @@ private:
 
     void startRequest(RequestKind requestKind, RequestId requestId, const QUrl& url, int timeoutMs);
     void handleRequestFinished(RequestKind requestKind);
+    void emitParsedResponse(RequestKind requestKind, RequestId requestId, const QByteArray& body);
     PendingRequest& getPendingRequest(RequestKind requestKind);
 
 private:
