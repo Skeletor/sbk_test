@@ -1,6 +1,6 @@
 #pragma once
 
-#include "app/domain/device/device_types.h"
+#include "app/controller/device/device_transport_types.h"
 
 #include <QByteArray>
 
@@ -8,7 +8,7 @@
 
 namespace Controller::Device::DeviceDataParser {
 
-std::optional<Domain::DeviceList> parseDevices(const QByteArray& body);
-std::optional<Domain::DeviceEventList> parsePoll(const QByteArray& body);
+std::optional<DeviceTopology> parseDevices(const QByteArray& body);
+std::optional<DeviceEventBatch> parsePoll(const QByteArray& body);
 
 }  // namespace Controller::Device::DeviceDataParser

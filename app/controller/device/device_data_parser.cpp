@@ -12,6 +12,7 @@
 namespace {
 
 const auto DevicesKey = QStringLiteral("devices");
+const auto LastSequenceKey = QStringLiteral("lastSeq");
 const auto EventsKey = QStringLiteral("events");
 const auto IdKey = QStringLiteral("id");
 const auto NameKey = QStringLiteral("name");
@@ -66,22 +67,24 @@ bool readString(
     return allowEmpty || !value.isEmpty();
 }
 
-bool readSequence(const QJsonObject& object, qint64& sequence)
+bool readInteger(
+    const QJsonObject& object,
+    const QString& key,
+    qint64& value)
 {
-    const QJsonValue jsonValue = object.value(SequenceKey);
+    const QJsonValue jsonValue = object.value(key);
     if (!jsonValue.isDouble()) {
         return false;
     }
 
     bool ok = false;
-    const qint64 convertedSequence = jsonValue.toVariant().toLongLong(&ok);
+    const qint64 convertedValue = jsonValue.toVariant().toLongLong(&ok);
     if (!ok
-        || convertedSequence <= 0
-        || static_cast<double>(convertedSequence) != jsonValue.toDouble()) {
+        || static_cast<double>(convertedValue) != jsonValue.toDouble()) {
         return false;
     }
 
-    sequence = convertedSequence;
+    value = convertedValue;
     return true;
 }
 
@@ -96,7 +99,8 @@ std::optional<Domain::DeviceEvent> parseEvent(const QJsonValue& jsonValue)
     Domain::DeviceEvent event;
     QString timestamp;
     QString type;
-    if (!readSequence(object, event.sequence)
+    if (!readInteger(object, SequenceKey, event.sequence)
+        || event.sequence <= 0
         || !readString(object, TimestampKey, timestamp)
         || !readString(object, DeviceKey, event.deviceId)
         || !readString(object, TypeKey, type)
@@ -138,7 +142,7 @@ std::optional<Domain::DeviceEvent> parseEvent(const QJsonValue& jsonValue)
 
 namespace Controller::Device::DeviceDataParser {
 
-std::optional<Domain::DeviceList> parseDevices(const QByteArray& body)
+std::optional<DeviceTopology> parseDevices(const QByteArray& body)
 {
     const std::optional<QJsonObject> root = parseRoot(body);
     if (!root) {
@@ -151,7 +155,7 @@ std::optional<Domain::DeviceList> parseDevices(const QByteArray& body)
         return std::nullopt;
     }
 
-    Domain::DeviceList devices;
+    DeviceTopology topology;
     QSet<QString> knownDeviceIds;
     const QJsonArray jsonDevices = devicesValue.toArray();
     for (int index = 0; index < jsonDevices.size(); ++index) {
@@ -175,16 +179,23 @@ std::optional<Domain::DeviceList> parseDevices(const QByteArray& body)
         }
 
         knownDeviceIds.insert(device.id);
-        devices.append(device);
+        topology.devices.append(device);
     }
 
-    return devices;
+    return topology;
 }
 
-std::optional<Domain::DeviceEventList> parsePoll(const QByteArray& body)
+std::optional<DeviceEventBatch> parsePoll(const QByteArray& body)
 {
     const std::optional<QJsonObject> root = parseRoot(body);
     if (!root) {
+        return std::nullopt;
+    }
+
+    DeviceEventBatch batch;
+    if (!readInteger(*root, LastSequenceKey, batch.lastSequence)
+        || batch.lastSequence < 0) {
+        qCWarning(DeviceDataParserLog) << "Invalid last sequence:" << root->value(LastSequenceKey);
         return std::nullopt;
     }
 
@@ -194,16 +205,15 @@ std::optional<Domain::DeviceEventList> parsePoll(const QByteArray& body)
         return std::nullopt;
     }
 
-    Domain::DeviceEventList events;
     const QJsonArray jsonEvents = eventsValue.toArray();
     for (int index = 0; index < jsonEvents.size(); ++index) {
         std::optional<Domain::DeviceEvent> event = parseEvent(jsonEvents.at(index));
         if (event) {
-            events.append(std::move(*event));
+            batch.events.append(std::move(*event));
         }
     }
 
-    return events;
+    return batch;
 }
 
 }  // namespace Controller::Device::DeviceDataParser
