@@ -27,7 +27,8 @@ SOURCES += \
     $$PWD/controller/device/http_device_transport.cpp \
     $$PWD/controller/device/idevice_transport.cpp \
     $$PWD/controller/device/mock_device_transport.cpp \
-    $$PWD/ui/main_window.cpp \
+    $$PWD/ui/device/journal_model.cpp \
+    $$PWD/ui/main_window.cpp
 
 HEADERS += \
     $$PWD/application.h \
@@ -48,4 +49,5 @@ HEADERS += \
     $$PWD/controller/device/idevice_transport.h \
     $$PWD/controller/device/mock_device_transport.h \
     $$PWD/domain/device/device_types.h \
-    $$PWD/ui/main_window.h \
+    $$PWD/ui/device/journal_model.h \
+    $$PWD/ui/main_window.h
