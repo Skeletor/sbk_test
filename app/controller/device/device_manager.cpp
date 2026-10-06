@@ -1,6 +1,5 @@
 #include "app/controller/device/device_manager.h"
 
-#include "app/controller/device/device_data_parser.h"
 #include "app/controller/device/device_poller.h"
 
 #include <algorithm>
@@ -18,14 +17,14 @@ DeviceManager::DeviceManager(IDeviceTransport* transport, QObject* parent)
 
     connect(
         m_transport,
-        &IDeviceTransport::devicesReceived,
+        &IDeviceTransport::topologyReceived,
         this,
-        &DeviceManager::handleDevicesReceived);
+        &DeviceManager::handleTopologyReceived);
     connect(
         m_transport,
-        &IDeviceTransport::pollReceived,
+        &IDeviceTransport::eventBatchReceived,
         this,
-        &DeviceManager::handlePollReceived);
+        &DeviceManager::handleEventBatchReceived);
     connect(
         m_transport,
         &IDeviceTransport::requestFailed,
@@ -114,39 +113,27 @@ void DeviceManager::shutdown()
     m_deviceListReady = false;
 }
 
-void DeviceManager::handleDevicesReceived(RequestId requestId, const QByteArray& body)
+void DeviceManager::handleTopologyReceived(RequestId requestId, const DeviceTopology& topology)
 {
     if (!m_activeDevicesRequest || requestId != *m_activeDevicesRequest) {
         return;
     }
 
     m_activeDevicesRequest.reset();
-
-    const std::optional<Domain::DeviceList> devices = DeviceDataParser::parseDevices(body);
-    if (!devices) {
-        return;
-    }
-    
     m_deviceListReady = true;
-    emit devicesUpdated(*devices);
+    emit devicesUpdated(topology.devices);
 
     requestPoll();
 }
 
-void DeviceManager::handlePollReceived(RequestId requestId, const QByteArray& body)
+void DeviceManager::handleEventBatchReceived(RequestId requestId, const DeviceEventBatch& batch)
 {
     if (!m_activePollRequest || requestId != *m_activePollRequest) {
         return;
     }
 
     m_activePollRequest.reset();
-
-    const std::optional<Domain::DeviceEventList> events = DeviceDataParser::parsePoll(body);
-    if (!events) {
-        return;
-    }
-
-    Domain::DeviceEventList acceptedEvents = acceptEvents(*events);
+    Domain::DeviceEventList acceptedEvents = acceptEvents(batch.events);
     if (!acceptedEvents.isEmpty()) {
         emit eventsAccepted(acceptedEvents);
     }

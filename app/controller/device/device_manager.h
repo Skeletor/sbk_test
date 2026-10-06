@@ -32,8 +32,8 @@ signals:
     void transportFailed(const TransportError& error);
 
 private:
-    void handleDevicesReceived(RequestId requestId, const QByteArray& body);
-    void handlePollReceived(RequestId requestId, const QByteArray& body);
+    void handleTopologyReceived(RequestId requestId, const DeviceTopology& topology);
+    void handleEventBatchReceived(RequestId requestId, const DeviceEventBatch& batch);
     void handleTransportFailure(const TransportError& error);
 
     void requestNext();
