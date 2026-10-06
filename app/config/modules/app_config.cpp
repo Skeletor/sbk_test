@@ -27,6 +27,7 @@ AppConfig::AppConfig()
 AppConfig::AppConfig(const QString& filePath)
     : m_settings(filePath, QSettings::IniFormat)
     , m_controllerConfig(m_settings)
+    , m_uiConfig(m_settings)
 {
     m_settings.sync();
     if (m_settings.status() != QSettings::NoError) {
@@ -37,6 +38,11 @@ AppConfig::AppConfig(const QString& filePath)
 const Controller::ControllerConfig& AppConfig::controllerConfig() const
 {
     return m_controllerConfig;
+}
+
+const Ui::UiConfig& AppConfig::uiConfig() const
+{
+    return m_uiConfig;
 }
 
 }  // namespace Config

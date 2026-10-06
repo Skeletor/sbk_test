@@ -2,6 +2,7 @@
 
 #include "app/config/modules/app_config.h"
 #include "app/controller/controller.h"
+#include "app/ui/main_window.h"
 
 #include <QApplication>
 #include <QMetaObject>
@@ -40,8 +41,9 @@ void Application::start()
 
     qRegisterMetaType<Domain::DeviceList>("Domain::DeviceList");
     qRegisterMetaType<Domain::DeviceEventList>("Domain::DeviceEventList");
-    qRegisterMetaType<Controller::Device::TransportError>("Device::TransportError");
+    qRegisterMetaType<Controller::Device::DeviceOperationError>("Controller::Device::DeviceOperationError");
 
+    m_mainWindow = new Ui::MainWindow(m_appConfig.uiConfig());
     m_controller = new Controller::Controller(m_appConfig.controllerConfig());
     m_controller->moveToThread(&m_controllerThread);
 
@@ -55,6 +57,31 @@ void Application::start()
         &QThread::finished,
         m_controller,
         &QObject::deleteLater);
+    connect(
+        m_mainWindow,
+        &Ui::MainWindow::refreshRequested,
+        m_controller,
+        &Controller::Controller::refreshDevices);
+    connect(
+        m_controller,
+        &Controller::Controller::devicesUpdated,
+        m_mainWindow,
+        &Ui::MainWindow::presentDevices);
+    connect(
+        m_controller,
+        &Controller::Controller::eventsAccepted,
+        m_mainWindow,
+        &Ui::MainWindow::presentEvents);
+    connect(
+        m_controller,
+        &Controller::Controller::devicesBecameUnreliable,
+        m_mainWindow,
+        &Ui::MainWindow::presentUnreliableDevices);
+    connect(
+        m_controller,
+        &Controller::Controller::deviceOperationFailed,
+        m_mainWindow,
+        &Ui::MainWindow::presentDeviceOperationFailure);
     connect(
         qApp,
         &QCoreApplication::aboutToQuit,
@@ -73,4 +100,5 @@ void Application::start()
     );
 
     m_controllerThread.start();
+    m_mainWindow->show();
 }
