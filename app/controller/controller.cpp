@@ -57,13 +57,8 @@ void Controller::refreshDevices()
 
 void Controller::shutdown()
 {
-    if (m_devicePoller) {
-        m_devicePoller->stop();
-    }
-
-    if (m_deviceTransport) {
-        m_deviceTransport->abortRequest(Device::RequestKind::Devices);
-        m_deviceTransport->abortRequest(Device::RequestKind::Poll);
+    if (m_deviceManager) {
+        m_deviceManager->shutdown();
     }
 
     if (m_deviceFreshnessSentinel) {

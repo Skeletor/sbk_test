@@ -85,6 +85,32 @@ void DeviceManager::refresh()
     requestPoll();
 }
 
+void DeviceManager::shutdown()
+{
+    if (m_poller) {
+        m_poller->stop();
+    }
+
+    if (!m_transport) {
+        m_activeDevicesRequest.reset();
+        m_activePollRequest.reset();
+        m_deviceListReady = false;
+        return;
+    }
+
+    if (m_activeDevicesRequest) {
+        m_activeDevicesRequest.reset();
+        m_transport->abortRequest(RequestKind::Devices);
+    }
+
+    if (m_activePollRequest) {
+        m_activePollRequest.reset();
+        m_transport->abortRequest(RequestKind::Poll);
+    }
+
+    m_deviceListReady = false;
+}
+
 void DeviceManager::handleDevicesReceived(RequestId requestId, const QByteArray& body)
 {
     if (!m_activeDevicesRequest || requestId != *m_activeDevicesRequest) {

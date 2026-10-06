@@ -24,6 +24,7 @@ public:
 public:
     void initialize();
     void refresh();
+    void shutdown();
 
 signals:
     void devicesUpdated(const Domain::DeviceList& devices);
