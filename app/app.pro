@@ -30,6 +30,7 @@ SOURCES += \
     $$PWD/ui/device/device_presenter.cpp \
     $$PWD/ui/device/device_tree_model.cpp \
     $$PWD/ui/device/journal_model.cpp \
+    $$PWD/ui/device/sticky_scroll_controller.cpp \
     $$PWD/ui/main_window.cpp
 
 HEADERS += \
@@ -55,4 +56,5 @@ HEADERS += \
     $$PWD/ui/device/device_presenter.h \
     $$PWD/ui/device/device_tree_model.h \
     $$PWD/ui/device/journal_model.h \
+    $$PWD/ui/device/sticky_scroll_controller.h \
     $$PWD/ui/main_window.h
