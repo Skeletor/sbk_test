@@ -16,6 +16,7 @@ SOURCES += \
     $$PWD/config/modules/controller/controller_config.cpp \
     $$PWD/config/modules/device/device_freshness_config.cpp \
     $$PWD/config/modules/device/device_poller_config.cpp \
+    $$PWD/config/modules/device/device_transport_config.cpp \
     $$PWD/config/modules/device/http_device_transport_config.cpp \
     $$PWD/controller/controller.cpp \
     $$PWD/controller/device/device_data_parser.cpp \
@@ -33,6 +34,7 @@ HEADERS += \
     $$PWD/config/modules/controller/controller_config.h \
     $$PWD/config/modules/device/device_freshness_config.h \
     $$PWD/config/modules/device/device_poller_config.h \
+    $$PWD/config/modules/device/device_transport_config.h \
     $$PWD/config/modules/device/http_device_transport_config.h \
     $$PWD/controller/controller.h \
     $$PWD/controller/device/device_data_parser.h \
