@@ -1,9 +1,12 @@
 #include "app/config/modules/app_config.h"
 
 #include <QDir>
+#include <QLoggingCategory>
 #include <QStandardPaths>
 
 namespace {
+
+Q_LOGGING_CATEGORY(AppConfigLog, "config.app")
 
 constexpr auto ConfigFileName = "config.ini";
 
@@ -25,6 +28,10 @@ AppConfig::AppConfig(const QString& filePath)
     : m_settings(filePath, QSettings::IniFormat)
     , m_controllerConfig(m_settings)
 {
+    m_settings.sync();
+    if (m_settings.status() != QSettings::NoError) {
+        qCWarning(AppConfigLog) << "Failed to write the configuration:" << m_settings.fileName();
+    }
 }
 
 const Controller::ControllerConfig& AppConfig::controllerConfig() const
