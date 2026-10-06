@@ -6,7 +6,7 @@ namespace Config::Device {
 
 class DeviceFreshnessConfig {
 public:
-    explicit DeviceFreshnessConfig(const QSettings& settings);
+    explicit DeviceFreshnessConfig(QSettings& settings);
 
     int unreliableAfterSec() const;
 

@@ -6,7 +6,7 @@ namespace Config::Device {
 
 class DevicePollerConfig {
 public:
-    explicit DevicePollerConfig(const QSettings& settings);
+    explicit DevicePollerConfig(QSettings& settings);
 
     int intervalMs() const;
 

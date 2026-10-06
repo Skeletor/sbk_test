@@ -2,10 +2,11 @@
 
 namespace Config::Controller {
 
-ControllerConfig::ControllerConfig(const QSettings& settings)
+ControllerConfig::ControllerConfig(QSettings& settings)
     : m_httpDeviceTransport(settings)
     , m_devicePoller(settings)
     , m_deviceFreshness(settings)
+    , m_deviceTransport(settings)
 {
 }
 
@@ -22,6 +23,11 @@ const Device::DevicePollerConfig& ControllerConfig::devicePoller() const
 const Device::DeviceFreshnessConfig& ControllerConfig::deviceFreshness() const
 {
     return m_deviceFreshness;
+}
+
+const Device::DeviceTransportConfig& ControllerConfig::deviceTransport() const
+{
+    return m_deviceTransport;
 }
 
 }  // namespace Config::Controller
