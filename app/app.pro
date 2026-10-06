@@ -42,6 +42,7 @@ HEADERS += \
     $$PWD/config/modules/device/http_device_transport_config.h \
     $$PWD/config/modules/ui/ui_config.h \
     $$PWD/controller/controller.h \
+    $$PWD/controller/device/device_operation_error.h \
     $$PWD/controller/device/device_data_parser.h \
     $$PWD/controller/device/device_freshness_sentinel.h \
     $$PWD/controller/device/device_manager.h \

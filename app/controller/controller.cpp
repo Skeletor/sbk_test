@@ -7,6 +7,55 @@
 #include "app/controller/device/http_device_transport.h"
 #include "app/controller/device/mock_device_transport.h"
 
+namespace {
+
+Controller::Device::DeviceOperation getDeviceOperation(
+    Controller::Device::RequestKind requestKind)
+{
+    switch (requestKind) {
+    case Controller::Device::RequestKind::Devices:
+        return Controller::Device::DeviceOperation::LoadTopology;
+
+    case Controller::Device::RequestKind::Poll:
+        return Controller::Device::DeviceOperation::PollEvents;
+    }
+
+    return Controller::Device::DeviceOperation::LoadTopology;
+}
+
+Controller::Device::DeviceOperationErrorCode getDeviceOperationErrorCode(
+    Controller::Device::TransportErrorCode transportErrorCode)
+{
+    switch (transportErrorCode) {
+    case Controller::Device::TransportErrorCode::Network:
+    case Controller::Device::TransportErrorCode::HttpStatus:
+        return Controller::Device::DeviceOperationErrorCode::Communication;
+
+    case Controller::Device::TransportErrorCode::Timeout:
+        return Controller::Device::DeviceOperationErrorCode::Timeout;
+
+    case Controller::Device::TransportErrorCode::InvalidPayload:
+        return Controller::Device::DeviceOperationErrorCode::InvalidResponse;
+
+    case Controller::Device::TransportErrorCode::Aborted:
+        return Controller::Device::DeviceOperationErrorCode::Cancelled;
+    }
+
+    return Controller::Device::DeviceOperationErrorCode::Communication;
+}
+
+Controller::Device::DeviceOperationError getDeviceOperationError(
+    const Controller::Device::TransportError& transportError)
+{
+    return {
+        getDeviceOperation(transportError.requestKind),
+        getDeviceOperationErrorCode(transportError.code),
+        transportError.message,
+    };
+}
+
+}  // namespace
+
 namespace Controller {
 
 Controller::Controller(
@@ -47,7 +96,14 @@ void Controller::initialize()
 
     connect(m_deviceManager, &Device::DeviceManager::devicesUpdated, this, &Controller::devicesUpdated);
     connect(m_deviceManager, &Device::DeviceManager::eventsAccepted, this, &Controller::eventsAccepted);
-    connect(m_deviceManager, &Device::DeviceManager::transportFailed, this, &Controller::transportFailed);
+    connect(
+        m_deviceManager,
+        &Device::DeviceManager::transportFailed,
+        this,
+        [this](const Device::TransportError& error) {
+            emit deviceOperationFailed(getDeviceOperationError(error));
+        }
+    );
 
     connect(
         m_deviceFreshnessSentinel,
