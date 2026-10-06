@@ -10,7 +10,7 @@ Makefile.*
 
 moc_*.cpp
 moc_predefs.h
-ui_*.h
+/ui_*.h
 qrc_*.cpp
 
 *.o
